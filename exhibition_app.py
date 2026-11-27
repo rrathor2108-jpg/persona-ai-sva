@@ -9,6 +9,7 @@ from gallery import get_scan_gallery, save_scan_to_gallery, render_gallery_tab, 
 
 st.set_page_config(page_title="Persona AI - By Shubham Joshi | Shri Vaishnav Academy", layout="wide")
 st.markdown(CSS_STYLES, unsafe_allow_html=True)
+components.html('<script>const d=window.parent.document;if(!d.sb){d.sb=1;d.addEventListener("keydown",e=>{if(e.code==="Space"&&!["INPUT","TEXTAREA"].includes(d.activeElement.tagName)){const b=d.querySelector(\'[data-testid="stCameraInput"] button\');if(b&&!b.disabled){e.preventDefault();b.click();}}});}</script>', height=0, width=0)
 
 SECRET_GEMINI = st.secrets.get("GEMINI_API_KEY", "") if hasattr(st, "secrets") else ""
 SECRET_GROQ = st.secrets.get("GROQ_API_KEY", "") if hasattr(st, "secrets") else ""
