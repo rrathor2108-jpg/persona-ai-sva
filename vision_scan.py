@@ -2,7 +2,6 @@ import base64
 import io
 import json
 import time
-import streamlit as st
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
@@ -21,39 +20,17 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
     start_t = time.time()
     detailed_prompt = (
         prompt
-        + " Carefully observe the person's real facial expression, glasses, posture, tiredness, and attire in the photo to give an accurate, personalized assessment. "
+        + " Carefully inspect the person's real facial features, eye contact, glasses, smile or tiredness, posture, and attire in the photo to generate a highly accurate, personalized first-impression profile. "
         + 'Return ONLY valid JSON with exact keys: {"age_range":"16-18","gender":"Male","study_stat":88,"discipline_stat":85,"health_score":90,"health_tip":"...","facial_notes":"...","initial_vibe":"..."}'
     )
 
-    # 1. HIGH-ACCURACY GROQ VISION (Capped at 7s so total scan never exceeds 12s)
-    if groq_key.strip():
-        try:
-            from groq import Groq
-            buf = io.BytesIO()
-            small_img.convert("RGB").save(buf, format="JPEG", quality=85)
-            b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-            g = Groq(api_key=groq_key.strip(), timeout=7.0, max_retries=0)
-            gr = g.chat.completions.create(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
-                messages=[{"role": "user", "content": [
-                    {"type": "text", "text": detailed_prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                ]}],
-                response_format={"type": "json_object"},
-                temperature=0.6,
-            )
-            data = json.loads(gr.choices.message.content)
-            return VisitorProfile(**data)
-        except Exception:
-            pass
-
-    # 2. GEMINI BACKUP (Only runs if under 2s elapsed, keeping total <= 12s)
-    if gemini_key.strip() and (time.time() - start_t) < 2.0:
+    # 1. GEMINI 3.8 FLASH FIRST (Highest Vision Accuracy, capped at 15s)
+    if gemini_key.strip():
         try:
             client = genai.Client(
                 api_key=gemini_key.strip(),
                 http_options=types.HttpOptions(
-                    timeout=10000,
+                    timeout=15000,
                     retry_options=types.HttpRetryOptions(attempts=1)
                 )
             )
@@ -67,6 +44,29 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                 )
             )
             return VisitorProfile.model_validate_json(res.text)
+        except Exception:
+            pass
+
+    # 2. GROQ LLAMA-4 MAVERICK BACKUP (Uses remaining time up to 28.5s max)
+    remaining = 28.5 - (time.time() - start_t)
+    if groq_key.strip() and remaining > 2.0:
+        try:
+            from groq import Groq
+            buf = io.BytesIO()
+            small_img.convert("RGB").save(buf, format="JPEG", quality=88)
+            b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            g = Groq(api_key=groq_key.strip(), timeout=remaining, max_retries=0)
+            gr = g.chat.completions.create(
+                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                messages=[{"role": "user", "content": [
+                    {"type": "text", "text": detailed_prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                ]}],
+                response_format={"type": "json_object"},
+                temperature=0.6,
+            )
+            data = json.loads(gr.choices.message.content)
+            return VisitorProfile(**data)
         except Exception:
             pass
 
