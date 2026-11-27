@@ -54,7 +54,7 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                 response_format={"type": "json_object"},
                 temperature=0.7,
             )
-            data = json.loads(gr.choices.message.content)
+            data = json.loads(gr.choices[0].message.content)
             return VisitorProfile(**data)
         except Exception as e:
             errors.append(f"Groq: {str(e)[:60]}")
