@@ -63,6 +63,15 @@ with st.sidebar:
         api_key = SECRET_GEMINI
         groq_key = SECRET_GROQ
 
+top_l, top_r = st.columns([4.2, 1])
+with top_l:
+    st.markdown(get_front_banner_html(), unsafe_allow_html=True)
+with top_r:
+    st.write("")
+    st.write("")
+    if st.button("Reset for Next Visitor", type="primary", use_container_width=True):
+        reset_visitor()
+        st.rerun()
 
 tab_scan, tab_gallery = st.tabs(["AI Persona Scanner", f"Previous Scans Wall ({len(get_scan_gallery())})"])
 
