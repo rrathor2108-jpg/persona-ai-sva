@@ -17,24 +17,25 @@ class VisitorProfile(BaseModel):
     initial_vibe: str = "Curious Explorer"
 
 def run_vision_scan(gemini_key, small_img, prompt, groq_key):
+    errors = []
+
     if gemini_key.strip():
-        try:
-            client = genai.Client(
-                api_key=gemini_key.strip(),
-                http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1))
-            )
-            res = client.models.generate_content(
-                model="gemini-3.8-flash-lite",
-                contents=[small_img, prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=VisitorProfile,
-                    temperature=0.7,
+        client = genai.Client(api_key=gemini_key.strip())
+        for m in ["gemini-2.5-flash", "gemini-3.8-flash-lite", "gemini-3.8-flash"]:
+            try:
+                res = client.models.generate_content(
+                    model=m,
+                    contents=[small_img, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=VisitorProfile,
+                        temperature=0.7,
+                    )
                 )
-            )
-            return VisitorProfile.model_validate_json(res.text)
-        except Exception:
-            pass
+                return VisitorProfile.model_validate_json(res.text)
+            except Exception as e:
+                errors.append(f"Gemini({m}): {str(e)[:60]}")
+                continue
 
     if groq_key.strip():
         try:
@@ -55,7 +56,10 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
             )
             data = json.loads(gr.choices.message.content)
             return VisitorProfile(**data)
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"Groq: {str(e)[:60]}")
+
+    if errors:
+        st.warning("AI Scan Note: " + " | ".join(errors))
 
     return VisitorProfile()
