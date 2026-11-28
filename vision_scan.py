@@ -26,7 +26,7 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
         + 'Return ONLY valid JSON with exact keys: {"age_range":"16-18","gender":"Male","study_stat":88,"discipline_stat":85,"health_score":90,"health_tip":"...","facial_notes":"...","initial_vibe":"..."}'
     )
 
-    # 1. GEMINI 3.8 FLASH-LITE FIRST (Fastest Multimodal Model, capped at 16s)
+    # 1. GEMINI AUTO-DISCOVER FLASH MODEL (Capped at 16s)
     if gemini_key.strip():
         try:
             client = genai.Client(
@@ -36,8 +36,18 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                     retry_options=types.HttpRetryOptions(attempts=1)
                 )
             )
+            # Dynamically find active flash models on your API key
+            g_models = []
+            for m in client.models.list():
+                name = m.name.replace("models/", "")
+                if "flash" in name and "tts" not in name and "image" not in name and "audio" not in name:
+                    g_models.append(name)
+            # Prefer lite/latest flash models first
+            g_models.sort(key=lambda x: (0 if "lite" in x else 1, x), reverse=True)
+            chosen_gemini = g_models if g_models else "gemini-2.5-flash"
+
             res = client.models.generate_content(
-                model="gemini-3.8-flash-lite",
+                model=chosen_gemini,
                 contents=[small_img, detailed_prompt],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -47,9 +57,9 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
             )
             return VisitorProfile.model_validate_json(res.text)
         except Exception as e:
-            errs.append(f"Gemini: {str(e)[:60]}")
+            errs.append(f"Gemini: {str(e)[:65]}")
 
-    # 2. GROQ AUTO-VISION BACKUP (Finds active Groq vision model dynamically, <=28.5s total)
+    # 2. GROQ AUTO-DISCOVER VISION MODEL (Uses remaining time up to 28.5s)
     remaining = 28.5 - (time.time() - start_t)
     if groq_key.strip() and remaining > 2.5:
         try:
@@ -59,13 +69,13 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
             b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
             g = Groq(api_key=groq_key.strip(), timeout=remaining, max_retries=0)
 
-            # Auto-pick active vision model on your Groq account
             all_ids = [m.id for m in g.models.list().data]
-            v_candidates = [m for m in all_ids if any(k in m.lower() for k in ["scout", "maverick", "vision", "pixtral", "qwen-vl"])]
-            target_model = v_candidates if v_candidates else "meta-llama/llama-4-scout-17b-16e-instruct"
+            v_list = [m for m in all_ids if any(k in m.lower() for k in ["scout", "maverick", "vision", "pixtral", "vl"])]
+            if not v_list:
+                raise RuntimeError(f"No vision model on Groq ({all_ids[:3]})")
 
             gr = g.chat.completions.create(
-                model=target_model,
+                model=v_list,
                 messages=[{"role": "user", "content": [
                     {"type": "text", "text": detailed_prompt},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
@@ -76,7 +86,7 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
             data = json.loads(gr.choices.message.content)
             return VisitorProfile(**data)
         except Exception as e:
-            errs.append(f"Groq: {str(e)[:60]}")
+            errs.append(f"Groq: {str(e)[:65]}")
 
     if errs:
         st.toast(" | ".join(errs))
