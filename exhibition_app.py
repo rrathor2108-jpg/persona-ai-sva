@@ -89,6 +89,31 @@ with tab_scan:
         with col2:
             st.markdown("**Optional Voice Check (2 sec)**")
             audio_buffer = st.audio_input("Say 'Hello!'")
+            components.html("""
+<div style="margin-bottom:8px;">
+  <button id="recBtn" style="width:100%;padding:10px;background:#111827;color:#fff;font-weight:700;border:none;border-radius:8px;cursor:pointer;font-family:sans-serif;">
+    🎙️ Start / Stop Voice (or Press R)
+  </button>
+</div>
+<script>
+const d = window.parent.document;
+function toggleMic() {
+  const micBtn = d.querySelector('[data-testid="stAudioInput"] button');
+  if (micBtn && !micBtn.disabled) micBtn.click();
+}
+document.getElementById("recBtn").onclick = toggleMic;
+if (!d.recKeyBound) {
+  d.recKeyBound = true;
+  d.addEventListener("keydown", function(e) {
+    if (e.code === "KeyR" && !["INPUT", "TEXTAREA"].includes(d.activeElement.tagName)) {
+      e.preventDefault();
+      toggleMic();
+    }
+  });
+}
+</script>
+""", height=52)
+
             st.info("Switch between **Live Camera Feed** and **Local Photo Upload** anytime above.")
             if st.button("Analyze & Generate Pass", type="primary", use_container_width=True):
                 if not img_buffer and not mock_scan:
