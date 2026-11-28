@@ -36,15 +36,13 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                     retry_options=types.HttpRetryOptions(attempts=1)
                 )
             )
-            # Dynamically find active flash models on your API key
             g_models = []
             for m in client.models.list():
                 name = m.name.replace("models/", "")
                 if "flash" in name and "tts" not in name and "image" not in name and "audio" not in name:
                     g_models.append(name)
-            # Prefer lite/latest flash models first
             g_models.sort(key=lambda x: (0 if "lite" in x else 1, x), reverse=True)
-            chosen_gemini = g_models if g_models else "gemini-2.5-flash"
+            chosen_gemini = next(iter(g_models), "gemini-2.5-flash")
 
             res = client.models.generate_content(
                 model=chosen_gemini,
@@ -72,10 +70,10 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
             all_ids = [m.id for m in g.models.list().data]
             v_list = [m for m in all_ids if any(k in m.lower() for k in ["scout", "maverick", "vision", "pixtral", "vl"])]
             if not v_list:
-                raise RuntimeError(f"No vision model on Groq ({all_ids[:3]})")
+                raise RuntimeError("No vision model active on Groq")
 
             gr = g.chat.completions.create(
-                model=v_list,
+                model=next(iter(v_list)),
                 messages=[{"role": "user", "content": [
                     {"type": "text", "text": detailed_prompt},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
@@ -83,7 +81,8 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                 response_format={"type": "json_object"},
                 temperature=0.6,
             )
-            data = json.loads(gr.choices.message.content)
+            first_choice = next(iter(gr.choices))
+            data = json.loads(first_choice.message.content)
             return VisitorProfile(**data)
         except Exception as e:
             errs.append(f"Groq: {str(e)[:65]}")
