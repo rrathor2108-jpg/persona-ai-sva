@@ -31,7 +31,8 @@ def get_reply(user_text, p, survey, instant_chat, groq_key, api_key, messages):
                     max_tokens=90,
                     temperature=0.8,
                 )
-                return res.choices[0].message.content
+                return next(iter(res.choices)).message.content
+
             except Exception:
                 continue
 
