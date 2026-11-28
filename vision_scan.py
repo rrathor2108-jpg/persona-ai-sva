@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import time
+import streamlit as st
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
@@ -18,13 +19,14 @@ class VisitorProfile(BaseModel):
 
 def run_vision_scan(gemini_key, small_img, prompt, groq_key):
     start_t = time.time()
+    errs = []
     detailed_prompt = (
         prompt
-        + " Carefully inspect the person's real facial features, eye contact, glasses, smile or tiredness, posture, and attire in the photo to generate a highly accurate, personalized first-impression profile. "
+        + " Carefully inspect the person's real facial features, eye contact, glasses, smile or tiredness, posture, and attire in the photo to generate an accurate, personalized first-impression profile. "
         + 'Return ONLY valid JSON with exact keys: {"age_range":"16-18","gender":"Male","study_stat":88,"discipline_stat":85,"health_score":90,"health_tip":"...","facial_notes":"...","initial_vibe":"..."}'
     )
 
-    # 1. GEMINI 3.8 FLASH FIRST (Highest Vision Accuracy, capped at 15s)
+    # 1. GEMINI 3.8 FLASH FIRST (Capped at 15s)
     if gemini_key.strip():
         try:
             client = genai.Client(
@@ -44,8 +46,8 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                 )
             )
             return VisitorProfile.model_validate_json(res.text)
-        except Exception:
-            pass
+        except Exception as e:
+            errs.append(f"Gemini: {str(e)[:60]}")
 
     # 2. GROQ LLAMA-4 MAVERICK BACKUP (Uses remaining time up to 28.5s max)
     remaining = 28.5 - (time.time() - start_t)
@@ -65,9 +67,12 @@ def run_vision_scan(gemini_key, small_img, prompt, groq_key):
                 response_format={"type": "json_object"},
                 temperature=0.6,
             )
-            data = json.loads(gr.choices.message.content)
+            data = json.loads(gr.choices[0].message.content)
             return VisitorProfile(**data)
-        except Exception:
-            pass
+        except Exception as e:
+            errs.append(f"Groq: {str(e)[:60]}")
+
+    if errs:
+        st.toast(" | ".join(errs))
 
     return VisitorProfile()
