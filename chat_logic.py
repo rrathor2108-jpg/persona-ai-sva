@@ -18,12 +18,11 @@ def get_reply(user_text, p, survey, instant_chat, groq_key, api_key, messages):
     if instant_chat:
         return fallback()
 
-    sys_inst = f"You are Persona AI, a witty AI Twin created by Shubham Joshi at Shri Vaishnav Academy. Initial scan: '{p.initial_vibe}', {p.health_score}% vitality. Survey: {survey}. Reply in MAX 2 short sentences."
+    sys_inst = f"You are Persona AI, a witty AI Twin created by Shubham Joshi at Shri Vaishnav Academy, Indore. Initial scan: '{p.initial_vibe}', {p.health_score}% vitality. Survey: {survey}. Reply in MAX 2 short sentences."
 
     if groq_key.strip():
         from groq import Groq
-        g = Groq(api_key=groq_key.strip())
-        last_err = ""
+        g = Groq(api_key=groq_key.strip(), timeout=10.0)
         for g_model in ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "qwen/qwen3-32b"]:
             try:
                 res = g.chat.completions.create(
@@ -33,11 +32,8 @@ def get_reply(user_text, p, survey, instant_chat, groq_key, api_key, messages):
                     temperature=0.8,
                 )
                 return res.choices[0].message.content
-
-            except Exception as e:
-                last_err = str(e)
+            except Exception:
                 continue
-        return f"[Groq Error: {last_err[:60]}] {fallback()}"
 
     if api_key.strip():
         try:
@@ -50,6 +46,6 @@ def get_reply(user_text, p, survey, instant_chat, groq_key, api_key, messages):
             )
             return res.text
         except Exception:
-            return fallback()
+            pass
 
     return fallback()
